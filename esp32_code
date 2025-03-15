@@ -1,0 +1,218 @@
+#include <ESP8266WiFi.h>
+#include <Servo.h>
+
+// WiFi settings
+const char* ssid = "s22wifi";
+const char* password = "12345678";
+
+// Create server on port 80
+WiFiServer server(80);
+
+// Servo setup
+Servo myServo;
+#define SERVO_PIN 2  // GPIO2 (D4)
+
+void setup() {
+  // Initialize serial communication
+  Serial.begin(115200);
+  
+  // Initialize and attach servo
+  myServo.attach(SERVO_PIN);
+  myServo.write(0);  // Start at 0 degrees
+  
+  // Connect to WiFi
+  WiFi.begin(ssid, password);
+  
+  Serial.print("Connecting to WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.println(WiFi.status());
+    Serial.println("wifi");
+    delay(5);
+  }
+  
+  Serial.println("\nConnected to Wi-Fi");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+
+  // Start the web server
+  server.begin();
+  Serial.println("Server started");
+}
+
+void loop() {
+  // Listen for incoming client connections
+  WiFiClient client = server.available();
+  
+  if (client) {
+    Serial.println("Client connected");
+    
+    String currentLine = "";
+    String httpMethod = "";
+    String requestBody = "";
+    boolean isBody = false;
+    int contentLength = 0;
+    
+    // Wait until the client sends data
+    unsigned long timeout = millis();
+    while (client.connected() && millis() - timeout < 5000) {
+      if (client.available()) {
+        timeout = millis();
+        char c = client.read();
+        
+        // If we're reading the body
+        if (isBody) {
+          requestBody += c;
+          
+          // If we've read the complete body
+          if (requestBody.length() >= contentLength) {
+            break;
+          }
+        } 
+        // Otherwise, we're still reading headers
+        else {
+          if (c == '\n') {
+            // Check for end of headers
+            if (currentLine.length() == 0) {
+              isBody = true;
+            } 
+            else {
+              // Check if header contains Content-Length
+              if (currentLine.startsWith("Content-Length:")) {
+                contentLength = currentLine.substring(16).toInt();
+                Serial.print("Content Length: ");
+                Serial.println(contentLength);
+              }
+              
+              // Save HTTP method from the first line
+              if (httpMethod == "" && currentLine.endsWith("HTTP/1.1")) {
+                httpMethod = currentLine.substring(0, currentLine.indexOf(' '));
+                Serial.print("HTTP Method: ");
+                Serial.println(httpMethod);
+              }
+              
+              currentLine = "";
+            }
+          } 
+          else if (c != '\r') {
+            currentLine += c;
+          }
+        }
+      }
+    }
+    
+    // Process the request based on HTTP method
+    if (httpMethod == "POST") {
+      Serial.println("POST request received");
+      Serial.print("Request body: ");
+      Serial.println(requestBody);
+      
+      // Parse the JSON to extract audio_length_sec
+      // This is a simple parser. For more robust solution, consider using a JSON library
+      int audioLengthPos = requestBody.indexOf("\"audio_length_sec\":");
+
+      if (audioLengthPos != -1) {
+        // Move to the start of the value (after the colon)
+        audioLengthPos = requestBody.indexOf(":", audioLengthPos) + 1;
+        int endPos = requestBody.indexOf(",", audioLengthPos);
+        
+        if (endPos == -1) {
+            // If there's no comma, the value is at the end of the string
+            endPos = requestBody.indexOf("}", audioLengthPos);
+        }
+
+        // Extract the value (the number after the colon)
+        String audioLengthSec = requestBody.substring(audioLengthPos, endPos);
+        Serial.println(audioLengthSec);  // Should print the number of seconds
+
+        if (audioLengthSec != "") {
+          // Convert to float
+          float durationSec = audioLengthSec.toFloat();
+          int durationMs = durationSec * 1000;
+          
+          Serial.print("Moving servo for ");
+          Serial.print(durationSec);
+          Serial.println(" seconds");
+          
+          // Move servo for the specified duration
+          moveServo(durationMs);
+          
+          // Send success response
+          client.println("HTTP/1.1 200 OK");
+          client.println("Content-Type: application/json");
+          client.println("Connection: close");
+          client.println();
+          client.println("{\"status\":\"success\",\"message\":\"Servo moved for " + String(durationSec) + " seconds\"}");
+        } else {
+          // Send error response if audio_length_sec is invalid
+          client.println("HTTP/1.1 400 Bad Request");
+          client.println("Content-Type: application/json");
+          client.println("Connection: close");
+          client.println();
+          client.println("{\"status\":\"error\",\"message\":\"audio_length_sec not found or invalid\"}");
+        }
+      } else {
+        // Send error response if audio_length_sec not found
+        client.println("HTTP/1.1 400 Bad Request");
+        client.println("Content-Type: application/json");
+        client.println("Connection: close");
+        client.println();
+        client.println("{\"status\":\"error\",\"message\":\"audio_length_sec not found in request\"}");
+      }
+    } else {
+      // Handle GET or other methods
+      client.println("HTTP/1.1 200 OK");
+      client.println("Content-Type: text/html");
+      client.println("Connection: close");
+      client.println();
+      client.println("<html>");
+      client.println("<head><title>ESP8266 Servo Controller</title></head>");
+      client.println("<body>");
+      client.println("<h1>ESP8266 Servo Controller</h1>");
+      client.println("<p>Send a POST request with JSON data containing audio_length_sec to control servo movement duration.</p>");
+      client.println("</body>");
+      client.println("</html>");
+    }
+    
+    // Close the connection
+    delay(1);
+    client.stop();
+    Serial.println("Client disconnected");
+  }
+}
+
+// Function to move servo back and forth for the specified duration
+void moveServo(int durationMs) {
+  unsigned long startTime = millis();
+  
+  while (millis() - startTime < durationMs) {
+    // Move from 0° to 180°
+    for (int pos = 0; pos <= 180; pos += 5) {
+      myServo.write(pos);
+      delay(15);  // Wait for servo to reach position
+      
+      // Check if we've exceeded the duration
+      if (millis() - startTime >= durationMs) {
+        return;
+      }
+    }
+    
+    // Check if we've exceeded the duration
+    if (millis() - startTime >= durationMs) {
+      return;
+    }
+    
+    // Move from 180° back to 0°
+    for (int pos = 180; pos >= 0; pos -= 5) {
+      myServo.write(pos);
+      delay(15);
+      
+      // Check if we've exceeded the duration
+      if (millis() - startTime >= durationMs) {
+        return;
+      }
+    }
+  }
+  
+  // Return to resting position
+  myServo.write(0);
+}
