@@ -33,4 +33,4 @@ The main goal of this project was to convert an average trash can into an stupid
 
 ---
 
-Made with ❤️ by [Valeriucoding](https://github.com/Valeriucoding) and [ModernGalahad](https://github.com/ModernGalahad) during Scrapyard Dej 2025
+Made with ❤️ by [Valeriucoding](https://github.com/Valeriucoding), [ModernGalahad](https://github.com/ModernGalahad) and Emisteluța⭐ during Scrapyard Dej 2025
