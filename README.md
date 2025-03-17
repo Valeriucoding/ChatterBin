@@ -13,3 +13,24 @@ The main goal of this project was to convert an average trash can into an stupid
 ![image](https://github.com/user-attachments/assets/ccd43d67-8a75-480a-8a18-b048c647da22)
 
 ![image](https://github.com/user-attachments/assets/7ce75ad0-d7fb-4058-9ef2-3b38156a7f5a)
+
+
+## Setup and Running Instructions
+
+### Software Setup
+1. Obtain an ElevenLabs API key from [ElevenLabs](https://elevenlabs.io/)
+2. Make sure the ESP32/ESP8266 and your laptop are connected to the same WiFi network
+3. Update the IP address in the code to match your ESP's IP address
+
+### Running the Project
+1. Upload the Arduino sketch to the ESP32/ESP8266
+2. Run the Python assistant script:
+   ```
+   python elevenlabs_voice_assistant.py
+   ```
+3. When prompted, enter your ElevenLabs API key
+4. Start talking to ChatterBin!
+
+---
+
+Made with ❤️ by [Valeriucoding](https://github.com/Valeriucoding) and [ModernGalahad](https://github.com/ModernGalahad) during Scrapyard Dej 2025
